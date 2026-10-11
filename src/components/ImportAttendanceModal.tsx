@@ -26,17 +26,12 @@ export const ImportAttendanceModal: React.FC<ImportAttendanceModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<"paste" | "file">("paste");
   const [rawText, setRawText] = useState("");
-  const [emailInput, setEmailInput] = useState("");
-  const [nameInput, setNameInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
-
-  const hasExistingSession =
-    typeof window !== "undefined" && !!localStorage.getItem("maa_token");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -92,21 +87,12 @@ export const ImportAttendanceModal: React.FC<ImportAttendanceModalProps> = ({
               ? `Bearer ${localStorage.getItem("maa_token")}`
               : "",
         },
-        body: JSON.stringify({
-          content,
-          email: emailInput.trim() || undefined,
-          name: nameInput.trim() || undefined,
-        }),
+        body: JSON.stringify({ content }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Gagal memproses impor data.");
-      }
-
-      if (data.token && typeof window !== "undefined") {
-        localStorage.setItem("maa_token", data.token);
-        document.cookie = `maa_session=${data.token}; path=/; max-age=604800; samesite=lax`;
       }
 
       setSuccessMsg(`Berhasil mengimpor ${data.recordsSaved} catatan absensi asli!`);
@@ -133,10 +119,10 @@ export const ImportAttendanceModal: React.FC<ImportAttendanceModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-white">
-                Impor Presensi Asli (100% Tanpa Ekstensi)
+                Impor Data Presensi Monev Resmi
               </h3>
               <p className="text-xs text-slate-400">
-                Data divalidasi langsung ke database lokal MAA Anda
+                Tambahkan catatan presensi resmi ke akun terautentikasi Anda
               </p>
             </div>
           </div>
@@ -146,7 +132,6 @@ export const ImportAttendanceModal: React.FC<ImportAttendanceModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
-          
         </div>
 
         {/* Tab Selection */}
@@ -177,36 +162,11 @@ export const ImportAttendanceModal: React.FC<ImportAttendanceModalProps> = ({
           </button>
         </div>
 
-        {/* Identitas Pengguna jika belum login */}
-        {!hasExistingSession && (
-          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-            <div className="text-xs font-semibold text-slate-300">
-              Identitas Akun MagangHub (Untuk Pembuatan Sesi):
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <input
-                type="email"
-                placeholder="Email akun Anda (cth: peserta@gmail.com)"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                className="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-500"
-              />
-              <input
-                type="text"
-                placeholder="Nama Lengkap Anda"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                className="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-          </div>
-        )}
-
         {/* Petunjuk Penggunaan */}
         <div className="p-3.5 rounded-xl bg-slate-950/90 border border-slate-800 text-xs text-slate-300 space-y-1.5">
           <div className="font-semibold text-cyan-300 flex items-center gap-1.5">
             <HelpCircle className="w-4 h-4 text-cyan-400 shrink-0" />
-            <span>Cara Mendapatkan Data Asli dari Monev:</span>
+            <span>Cara Mengambil Respons Asli dari Monev:</span>
           </div>
           <p className="text-[11px] text-slate-300 leading-relaxed pl-1">
             Buka portal resmi Monev di{" "}

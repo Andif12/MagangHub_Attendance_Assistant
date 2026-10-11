@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromRequest, createSessionToken, setSessionCookie } from "@/lib/auth/session";
-import { userRepository } from "@/lib/db/database";
+import { getSessionFromRequest } from "@/lib/auth/session";
 import {
   parseAttendanceText,
   processAndSaveImport,
 } from "@/lib/monev/attendance-importer";
-import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
+    // Keamanan Ketat: Impor hanya dapat dilakukan oleh pengguna yang telah terautentikasi
     const session = await getSessionFromRequest(req);
+    if (!session) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Akses ditolak: Impor data presensi hanya dapat dilakukan oleh pengguna yang telah terautentikasi.",
+        },
+        { status: 401 }
+      );
+    }
 
     let rawContent = "";
-    let userEmail = "";
-    let userName = "";
-
     const contentType = req.headers.get("content-type") || "";
 
     if (contentType.includes("multipart/form-data")) {
@@ -26,16 +31,12 @@ export async function POST(req: NextRequest) {
         const textParam = formData.get("content") as string | null;
         rawContent = textParam || "";
       }
-      userEmail = (formData.get("email") as string | null) || "";
-      userName = (formData.get("name") as string | null) || "";
     } else {
       const body = await req.json();
       if (typeof body === "string") {
         rawContent = body;
       } else {
         rawContent = body.content || JSON.stringify(body);
-        userEmail = body.email || "";
-        userName = body.name || "";
       }
     }
 
@@ -59,95 +60,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Tentukan Sesi Pengguna: Gunakan sesi aktif atau buat sesi terverifikasi melalui data Monev resmi
-    let targetUserId = session?.userId;
-    let newlyCreatedToken: string | null = null;
-    let targetUserObj = session;
-
-    if (!targetUserId) {
-      // Alternatif sementara: verifikasi identitas dari data presensi Monev asli yang diimpor
-      const finalEmail =
-        userEmail.trim() ||
-        parseResult.userInfo?.email ||
-        (parseResult.userInfo?.id
-          ? `participant_${parseResult.userInfo.id.slice(-6)}@maganghub.kemnaker.go.id`
-          : null);
-
-      if (!finalEmail) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Autentikasi resmi MagangHub diperlukan. Masukkan email akun MagangHub Anda pada formulir impor untuk memverifikasi sesi.",
-          },
-          { status: 401 }
-        );
-      }
-
-      const finalName =
-        userName.trim() || parseResult.userInfo?.name || "Peserta MagangHub";
-
-      let existing = userRepository.findByEmail(finalEmail);
-      let targetId = existing?.id;
-      let finalTargetEmail = existing?.email || finalEmail;
-      let finalTargetName = existing?.name || finalName;
-
-      if (!existing) {
-        const created = userRepository.create({
-          id: parseResult.userInfo?.id || crypto.randomUUID(),
-          email: finalEmail,
-          name: finalName,
-          password_hash: "MONEV_IMPORT_VERIFIED",
-        });
-        targetId = created.id;
-        finalTargetEmail = created.email;
-        finalTargetName = created.name;
-      }
-
-      const verifiedUserId = targetId!;
-      targetUserId = verifiedUserId;
-      targetUserObj = {
-        userId: verifiedUserId,
-        email: finalTargetEmail,
-        name: finalTargetName,
-      };
-
-      // Terbitkan sesi MAA terverifikasi
-      newlyCreatedToken = await createSessionToken({
-        userId: verifiedUserId,
-        email: finalTargetEmail,
-        name: finalTargetName,
-      });
-    }
-
-    // Simpan dan Validasi Catatan Presensi Terisolasi
+    // Simpan dan Validasi Catatan Presensi Terisolasi untuk Sesi Pengguna Ini
     const { savedCount, records } = processAndSaveImport(
-      targetUserId,
+      session.userId,
       parseResult.valid,
       "MANUAL_IMPORT_VERIFIED"
     );
 
-    const response = NextResponse.json({
+    return NextResponse.json({
       success: true,
-      message: `Berhasil mengimpor ${savedCount} catatan presensi asli.`,
+      message: `Berhasil mengimpor ${savedCount} catatan presensi asli ke akun Anda.`,
       recordsSaved: savedCount,
       warnings: parseResult.errors.length > 0 ? parseResult.errors : undefined,
       records,
-      token: newlyCreatedToken || undefined,
-      user: targetUserObj
-        ? {
-            id: targetUserObj.userId,
-            name: targetUserObj.name,
-            email: targetUserObj.email,
-          }
-        : undefined,
+      user: {
+        id: session.userId,
+        name: session.name,
+        email: session.email,
+      },
     });
-
-    if (newlyCreatedToken) {
-      setSessionCookie(response, newlyCreatedToken);
-    }
-
-    return response;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json(

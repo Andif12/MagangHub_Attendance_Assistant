@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { getDb, closeDb, userRepository, attendanceRepository, syncRunRepository } from "../src/lib/db/database";
+import { OFFICIAL_MONEV_PORTAL_URL } from "../src/components/MagangHubLoginPage";
 import crypto from "crypto";
 
-describe("Monev SSO Investigation & Companion Flow Tests", () => {
+describe("Monev SSO Investigation & Safe Direct Navigation Tests", () => {
   beforeEach(() => {
     const db = getDb();
     db.prepare("DELETE FROM attendance_records").run();
@@ -87,5 +88,12 @@ describe("Monev SSO Investigation & Companion Flow Tests", () => {
     const history = syncRunRepository.listByUser(user.id, 5);
     expect(history).toHaveLength(1);
     expect(history[0].user_id).toBe(user.id);
+  });
+
+  it("4. Tombol login diarahkan langsung ke portal resmi Monev dan TIDAK memanggil /api/auth/sso/initiate", () => {
+    expect(OFFICIAL_MONEV_PORTAL_URL).toBe("https://monev.maganghub.kemnaker.go.id/login");
+    // Memastikan URL adalah domain resmi Kemnaker tanpa parameter proxy pihak ketiga
+    expect(OFFICIAL_MONEV_PORTAL_URL).not.toContain("localhost");
+    expect(OFFICIAL_MONEV_PORTAL_URL).not.toContain("/api/auth/sso/initiate");
   });
 });

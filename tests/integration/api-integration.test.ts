@@ -185,8 +185,7 @@ describe("MAA End-to-End API Integration & Multi-Tenant Isolation Tests", () => 
     expect(dataBeta.syncRuns.length).toBe(0); // Beta has no sync runs
   });
 
-  it("5. Direct unauthenticated import with email creates user and issues session token", async () => {
-    const freshEmail = `fresh-${crypto.randomUUID()}@maganghub.kemnaker.go.id`;
+  it("5. Direct unauthenticated import is rejected with 401 Unauthorized", async () => {
     const payload = {
       data: [{ date: "2026-10-08", status: "PRESENT", approval_status: "APPROVED" }],
     };
@@ -196,18 +195,16 @@ describe("MAA End-to-End API Integration & Multi-Tenant Isolation Tests", () => 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         content: JSON.stringify(payload),
-        email: freshEmail,
-        name: "Peserta Baru",
+        email: "unauth@example.com",
+        name: "Peserta Unauth",
       }),
     });
 
     const res = await importHandler(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
     const data = await res.json();
-    expect(data.success).toBe(true);
-    expect(data.token).toBeDefined();
-    expect(data.user.email).toBe(freshEmail);
-    expect(data.recordsSaved).toBe(1);
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("Akses ditolak");
   });
 
   it("6. Invalid or empty payload is rejected with 400", async () => {

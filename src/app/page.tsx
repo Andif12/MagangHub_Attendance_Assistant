@@ -185,14 +185,8 @@ export default function Home() {
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  const handleOpenAuth = async () => {
-    try {
-      const res = await fetch("/api/auth/sso/initiate");
-      const data = await res.json();
-      if (res.ok && data.success && data.redirectUrl) {
-        window.location.href = data.redirectUrl;
-      }
-    } catch {}
+  const handleOpenAuth = () => {
+    window.open("https://monev.maganghub.kemnaker.go.id/login", "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -221,7 +215,6 @@ export default function Home() {
           <MagangHubLoginPage
             onRefreshSession={checkCurrentUser}
             isCheckingSession={isAuthLoading}
-            onOpenImportModal={() => setIsImportModalOpen(true)}
           />
         ) : (
           /* When Logged In: Real Attendance Dashboard */
