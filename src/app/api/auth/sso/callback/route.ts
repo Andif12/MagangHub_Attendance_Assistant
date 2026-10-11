@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Parameter code dan state wajib ada dari alur OAuth resmi
   if (!code || !state) {
     return NextResponse.redirect(
       new URL("/?auth_error=missing_code_or_state", req.url)
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Attempt code exchange with Monev API
+    // 1. Verifikasi pertukaran kode dengan server Monev Kemnaker resmi
     const exchangeUrl = `https://monev-api.maganghub.kemnaker.go.id/api/v1/auth/login/callback?code=${encodeURIComponent(
       code
     )}&state=${encodeURIComponent(state)}`;
@@ -34,6 +35,17 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    if (!res.ok) {
+      return NextResponse.redirect(
+        new URL(
+          `/?auth_error=exchange_failed&details=${encodeURIComponent(
+            `Server Monev menolak pertukaran kode otorisasi (HTTP ${res.status}).`
+          )}`,
+          req.url
+        )
+      );
+    }
+
     const data = await res.json();
     const token = data?.access_token || data?.data?.access_token;
 
@@ -41,14 +53,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(
         new URL(
           `/?auth_error=exchange_failed&details=${encodeURIComponent(
-            data?.message || "Monev API menolak kode otorisasi."
+            data?.message || "Token akses tidak diterbitkan oleh server Monev."
           )}`,
           req.url
         )
       );
     }
 
-    // Fetch user profile using the acquired access token
+    // 2. Verifikasi identitas peserta asli ke endpoint profil Monev
     const profileRes = await fetch(
       "https://monev-api.maganghub.kemnaker.go.id/api/v1/users/me",
       {
@@ -59,20 +71,44 @@ export async function GET(req: NextRequest) {
       }
     );
 
+    if (!profileRes.ok) {
+      return NextResponse.redirect(
+        new URL(
+          `/?auth_error=profile_failed&details=${encodeURIComponent(
+            "Identitas peserta tidak dapat diverifikasi dari server Monev."
+          )}`,
+          req.url
+        )
+      );
+    }
+
     const profileData = await profileRes.json();
     const monevUser = profileData?.data || profileData;
 
-    const email = monevUser?.email || `participant_${code.slice(0, 8)}@maganghub.kemnaker.go.id`;
+    // Pastikan email valid benar-benar diperoleh dari respon resmi Kemnaker
+    const email = monevUser?.email;
     const name = monevUser?.name || "Peserta MagangHub";
-    const participantId = monevUser?.id || monevUser?.participant_id || code.slice(0, 12);
+    const externalId = monevUser?.id || monevUser?.participant_id;
 
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return NextResponse.redirect(
+        new URL(
+          `/?auth_error=identity_missing&details=${encodeURIComponent(
+            "Identitas email resmi peserta tidak ditemukan dalam respons Monev."
+          )}`,
+          req.url
+        )
+      );
+    }
+
+    // 3. Daftarkan / temukan pengguna terverifikasi di basis data lokal
     let user = userRepository.findByEmail(email);
     if (!user) {
       const created = userRepository.create({
-        id: crypto.randomUUID(),
+        id: externalId || crypto.randomUUID(),
         email,
         name,
-        password_hash: "MONEV_SSO_AUTHENTICATED",
+        password_hash: "MONEV_SSO_VERIFIED",
       });
       user = userRepository.findByEmail(created.email);
     }
@@ -81,11 +117,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL("/?auth_error=user_creation_failed", req.url));
     }
 
+    // 4. Terbitkan sesi MAA terverifikasi
     const sessionJwt = await createSessionToken({
       userId: user.id,
       email: user.email,
       name: user.name,
     });
+
     const response = NextResponse.redirect(new URL("/?auth_success=1", req.url));
     setSessionCookie(response, sessionJwt);
 

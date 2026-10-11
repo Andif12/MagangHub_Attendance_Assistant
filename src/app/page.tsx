@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { MagangHubLoginPage } from "@/components/MagangHubLoginPage";
 import { AttendanceDashboard } from "@/components/AttendanceDashboard";
 import { ConnectMonevModal } from "@/components/ConnectMonevModal";
+import { ImportAttendanceModal } from "@/components/ImportAttendanceModal";
 import { NotificationDrawer } from "@/components/NotificationDrawer";
 import { DbAttendanceRecord, DbSyncRun } from "@/lib/db/schema";
 import { SafeUser, MonevConnectionState, AppNotification } from "@/types";
@@ -25,6 +26,7 @@ export default function Home() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState<boolean>(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
 
   const getAuthHeaders = (): Record<string, string> => {
     if (typeof window === "undefined") return {};
@@ -79,17 +81,6 @@ export default function Home() {
   // 2. Periksa sesi login pengguna saat pertama kali dibuka (/api/auth/me)
   const checkCurrentUser = useCallback(async () => {
     try {
-      // Periksa token jembatan dari URL parameter (?token=...)
-      if (typeof window !== "undefined") {
-        const urlParams = new URLSearchParams(window.location.search);
-        const tokenFromUrl = urlParams.get("token");
-        if (tokenFromUrl) {
-          document.cookie = `maa_session=${tokenFromUrl}; path=/; max-age=604800; samesite=lax`;
-          localStorage.setItem("maa_token", tokenFromUrl);
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      }
-
       const headers = getAuthHeaders();
       const res = await fetch("/api/auth/me", { headers });
       if (res.ok) {
@@ -230,6 +221,7 @@ export default function Home() {
           <MagangHubLoginPage
             onRefreshSession={checkCurrentUser}
             isCheckingSession={isAuthLoading}
+            onOpenImportModal={() => setIsImportModalOpen(true)}
           />
         ) : (
           /* When Logged In: Real Attendance Dashboard */
@@ -241,6 +233,7 @@ export default function Home() {
             isSyncing={isSyncing}
             onSync={handleSyncAttendance}
             onOpenConnectModal={() => setIsConnectModalOpen(true)}
+            onOpenImportModal={() => setIsImportModalOpen(true)}
           />
         )}
       </main>
@@ -263,6 +256,12 @@ export default function Home() {
       </footer>
 
       {/* Modals & Drawers */}
+      <ImportAttendanceModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportSuccess={() => fetchUserData()}
+      />
+
       <ConnectMonevModal
         isOpen={isConnectModalOpen}
         onClose={() => setIsConnectModalOpen(false)}

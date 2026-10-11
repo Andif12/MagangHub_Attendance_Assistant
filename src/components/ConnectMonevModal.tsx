@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { X, ExternalLink, ShieldCheck, ServerOff, Puzzle } from "lucide-react";
+import { X, ExternalLink, ShieldCheck, Server, FileText, CheckCircle2 } from "lucide-react";
 import { OFFICIAL_MONEV_LOGIN_URL } from "@/lib/monev/auth-investigation";
 
 interface ConnectMonevModalProps {
@@ -29,10 +29,12 @@ export const ConnectMonevModal: React.FC<ConnectMonevModalProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-              <h2 className="text-lg font-bold text-white tracking-tight">Login ke Portal Monev Resmi</h2>
+              <h2 className="text-lg font-bold text-white tracking-tight">
+                Integrasi & Otomatisasi Presensi Monev
+              </h2>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Alur autentikasi resmi & pembacaan presensi akun pengguna MagangHub
+              Arsitektur sinkronisasi mandiri tanpa browser extension
             </p>
           </div>
           <button
@@ -45,55 +47,57 @@ export const ConnectMonevModal: React.FC<ConnectMonevModalProps> = ({
 
         {/* Content */}
         <div className="mt-5 space-y-4 text-xs">
-          {/* Step 1 */}
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+          {/* Jalur 1: Otomatisasi Backend Server (Cron 30 Menit) */}
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2.5">
             <div className="font-semibold text-white flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-cyan-900 text-cyan-300 flex items-center justify-center text-xs font-bold">1</span>
-              <span>Buka Portal Login Resmi Monev Kemnaker</span>
+              <Server className="w-4 h-4 text-emerald-400" />
+              <span>1. Sinkronisasi Otomatis Backend (Cron 30 Menit)</span>
             </div>
-            <p className="text-slate-400 text-[11px] leading-relaxed">
-              Masuk ke akun MagangHub/Monev Anda melalui browser di situs resmi Kemnaker RI. MAA tidak pernah meminta atau menyimpan kata sandi Monev Anda.
+            <p className="text-slate-300 text-[11px] leading-relaxed">
+              MAA telah dilengkapi service background scheduler dan endpoint cron deployment (<code>/api/cron/sync</code>) dengan interval 30 menit. Jalur ini aktif ketika environment server backend dikonfigurasi dengan kredensial resmi (<code>MONEV_AUTH_TOKEN</code> dan <code>MONEV_PARTICIPANT_ID</code>).
             </p>
+            <div className="text-[11px] text-slate-400 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
+              <strong className="text-slate-200">Kondisi Saat Ini:</strong> Jika kredensial server belum disetel, scheduler mencatat audit secara transparan tanpa memalsukan data presensi.
+            </div>
+          </div>
+
+          {/* Jalur 2: Impor Mandiri Terverifikasi (Zero Extension) */}
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2.5">
+            <div className="font-semibold text-white flex items-center gap-2">
+              <FileText className="w-4 h-4 text-cyan-400" />
+              <span>2. Impor Data Asli Monev Terverifikasi (Aktif & Berjalan)</span>
+            </div>
+            <p className="text-slate-300 text-[11px] leading-relaxed">
+              Peserta dapat mengimpor respons data presensi asli dari portal Monev secara langsung tanpa perlu memasang browser extension, tanpa perlu menyalin kata sandi, dan dengan isolasi data penuh di database lokal.
+            </p>
+          </div>
+
+          {/* Jalur Resmi Kemnaker Kedepannya */}
+          <div className="p-4 rounded-xl bg-cyan-950/20 border border-cyan-800/40 space-y-2">
+            <div className="flex items-center gap-2 font-semibold text-cyan-300">
+              <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span>Jalur Resmi Pengaktifan Otomatisasi Penuh</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[11px]">
+              Agar aplikasi yang di-deploy dapat membaca data secara otomatis tanpa interaksi berkas sama sekali, Kemnaker perlu menyediakan:
+            </p>
+            <ul className="list-disc list-inside text-[11px] text-slate-400 space-y-1">
+              <li>Pendaftaran OAuth 2.0 Partner / API Client resmi Kemnaker RI.</li>
+              <li>Atau Personal Access Token (PAT) resmi di profil peserta MagangHub.</li>
+            </ul>
+          </div>
+
+          {/* Tombol Aksi */}
+          <div className="pt-2 flex flex-col gap-2">
             <button
               type="button"
               onClick={handleOpenOfficialLogin}
               className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center justify-center gap-2"
             >
               <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Buka monev.maganghub.kemnaker.go.id (Tab Baru)</span>
+              <span>Buka Portal monev.maganghub.kemnaker.go.id (Tab Baru)</span>
             </button>
-          </div>
 
-          {/* Technical Restriction Diagnosis */}
-          <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-800/40 space-y-2">
-            <div className="flex items-center gap-2 font-semibold text-amber-300">
-              <ServerOff className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Analisis Keamanan Browser (Same-Origin Policy)</span>
-            </div>
-            <p className="text-slate-300 leading-relaxed text-[11px]">
-              Sesi login portal resmi tersimpan di bawah domain <code>kemnaker.go.id</code>. Berdasarkan spesifikasi keamanan peramban W3C, website eksternal (termasuk localhost) diblokir dari membaca cookie sesi tersebut karena Kemnaker belum merilis <strong>OAuth 2.0 publik untuk pihak ketiga</strong>.
-            </p>
-
-            <div className="p-3 rounded-lg bg-slate-900 border border-slate-700 space-y-1.5 mt-2">
-              <div className="flex items-center gap-1.5 font-semibold text-cyan-300 text-xs">
-                <Puzzle className="w-4 h-4 text-cyan-400" />
-                <span>Solusi Resmi: MAA Companion Extension</span>
-              </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Untuk membaca presensi nyata dari sesi aktif browser Anda tanpa menyalin token manual, pasang ekstensi di folder <code>extension/</code> pada Chrome/Edge Anda.
-              </p>
-            </div>
-          </div>
-
-          {/* Step 2 */}
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
-            <div className="font-semibold text-white flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-cyan-900 text-cyan-300 flex items-center justify-center text-xs font-bold">2</span>
-              <span>Periksa Status Presensi</span>
-            </div>
-            <p className="text-slate-400 text-[11px] leading-relaxed">
-              Jalankan sinkronisasi presensi untuk memverifikasi apakah kredensial atau sesi aktif telah siap membaca data kehadiran Anda.
-            </p>
             <button
               type="button"
               onClick={() => {
@@ -102,7 +106,7 @@ export const ConnectMonevModal: React.FC<ConnectMonevModalProps> = ({
               }}
               className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-md shadow-cyan-950/40 transition cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>Jalankan Sinkronisasi Sekarang</span>
+              <span>Uji Audit / Sinkronisasi Presensi Sekarang</span>
             </button>
           </div>
         </div>
@@ -111,7 +115,7 @@ export const ConnectMonevModal: React.FC<ConnectMonevModalProps> = ({
         <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
           <div className="flex items-center gap-1.5 text-slate-400">
             <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Zero Credential Storage Policy</span>
+            <span>Keamanan Terjamin & Tanpa Penyimpanan Kredensial Sensitif</span>
           </div>
           <button
             type="button"

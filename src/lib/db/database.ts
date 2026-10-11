@@ -83,6 +83,12 @@ export const userRepository = {
     return row || null;
   },
 
+  findAll(): SafeUser[] {
+    const db = getDb();
+    const stmt = db.prepare(`SELECT id, name, email, created_at, updated_at FROM users ORDER BY created_at ASC`);
+    return stmt.all() as SafeUser[];
+  },
+
   findById(id: string): SafeUser | null {
     const db = getDb();
     const stmt = db.prepare(`SELECT id, name, email, created_at, updated_at FROM users WHERE id = ?`);
@@ -119,7 +125,7 @@ export const attendanceRepository = {
         source_updated_at = excluded.source_updated_at,
         last_checked_at = excluded.last_checked_at,
         raw_response = excluded.raw_response,
-        notes = excluded.notes
+        notes = COALESCE(excluded.notes, attendance_records.notes)
     `);
 
     stmt.run(
@@ -139,6 +145,34 @@ export const attendanceRepository = {
       SELECT * FROM attendance_records WHERE user_id = ? AND attendance_date = ?
     `);
     return selectStmt.get(record.user_id, record.attendance_date) as DbAttendanceRecord;
+  },
+
+  getLatestSourceInfo(userId: string): {
+    source: string;
+    lastCheckedAt: string;
+    sourceUpdatedAt: string | null;
+    totalRecords: number;
+  } | null {
+    const db = getDb();
+    const stmt = db.prepare(`
+      SELECT source, last_checked_at, source_updated_at
+      FROM attendance_records
+      WHERE user_id = ?
+      ORDER BY last_checked_at DESC
+      LIMIT 1
+    `);
+    const row = stmt.get(userId) as { source: string; last_checked_at: string; source_updated_at: string | null } | undefined;
+    if (!row) return null;
+
+    const countStmt = db.prepare(`SELECT COUNT(*) as count FROM attendance_records WHERE user_id = ?`);
+    const countRow = countStmt.get(userId) as { count: number };
+
+    return {
+      source: row.source,
+      lastCheckedAt: row.last_checked_at,
+      sourceUpdatedAt: row.source_updated_at,
+      totalRecords: countRow.count,
+    };
   },
 
   findByUserAndDateRange(

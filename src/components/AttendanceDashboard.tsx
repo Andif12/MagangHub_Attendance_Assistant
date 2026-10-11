@@ -16,6 +16,7 @@ import {
   Coffee,
   FileEdit,
   UserCheck,
+  Upload,
   CalendarDays,
   Filter,
 } from "lucide-react";
@@ -33,6 +34,7 @@ interface AttendanceDashboardProps {
   isSyncing: boolean;
   onSync: (startDate?: string, endDate?: string) => Promise<void>;
   onOpenConnectModal: () => void;
+  onOpenImportModal?: () => void;
 }
 
 export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
@@ -43,6 +45,7 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
   isSyncing,
   onSync,
   onOpenConnectModal,
+  onOpenImportModal,
 }) => {
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Makassar",
@@ -97,43 +100,106 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
     }
   };
 
+  const latestSource = useMemo(() => {
+    if (records.length === 0) return null;
+    const official = records.find((r) => r.source === "official_monev");
+    if (official) return "MONEV_API_SERVER";
+    return records[0].source || "MANUAL_IMPORT_VERIFIED";
+  }, [records]);
+
+  const lastUpdatedTime = useMemo(() => {
+    if (latestSync?.started_at) return latestSync.started_at;
+    if (records.length > 0 && records[0].last_checked_at) return records[0].last_checked_at;
+    return null;
+  }, [latestSync, records]);
+
   return (
     <div className="space-y-6">
       {/* Top Status & Sync Action Bar */}
       <div className="p-5 rounded-2xl glass-panel border border-slate-800 shadow-xl flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <span className="text-xs text-slate-400 font-medium">
-              Status Integrasi Monev:
+              Status Integrasi & Otomatisasi:
             </span>
             {connectionState === "REAL_CONNECTED" ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                REAL CONNECTED (Sesi Monev MagangHub Aktif)
+                Otomatisasi Server Aktif (Cron 30 Menit)
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                Terhubung via Companion Extension
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-950/80 text-cyan-300 border border-cyan-800/80">
+                <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                Impor Mandiri Terverifikasi (Zero Extension)
               </span>
             )}
+
+            <button
+              type="button"
+              onClick={onOpenConnectModal}
+              className="text-[11px] text-cyan-400 hover:text-cyan-300 underline font-medium ml-1 transition cursor-pointer"
+            >
+              Info Jalur Otomatis
+            </button>
           </div>
+
           <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
             {connectionMessage}
           </p>
-          {latestSync && (
-            <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-2">
-              <Clock className="w-3.5 h-3.5 text-cyan-400" />
-              <span>
-                Pemeriksaan Terakhir:{" "}
-                {new Date(latestSync.started_at).toLocaleString("id-ID")} (
-                {latestSync.records_checked} data absensi terbaca)
-              </span>
-            </div>
-          )}
+
+          <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400 mt-2.5">
+            {lastUpdatedTime && (
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                <span>
+                  Terakhir Diperbarui:{" "}
+                  <strong className="text-slate-200">
+                    {new Date(lastUpdatedTime).toLocaleString("id-ID")}
+                  </strong>
+                </span>
+              </div>
+            )}
+
+            {latestSource && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                <span>
+                  Sumber Data:{" "}
+                  <span className="text-slate-200 font-medium">
+                    {latestSource === "MONEV_API_SERVER"
+                      ? "API Server Resmi Monev Kemnaker"
+                      : "Impor Data Asli Monev Terverifikasi"}
+                  </span>
+                </span>
+              </div>
+            )}
+
+            {latestSync && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>
+                  Hasil Audit:{" "}
+                  <span className="text-slate-200">
+                    {latestSync.result} ({latestSync.records_checked} data)
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {onOpenImportModal && (
+            <button
+              type="button"
+              onClick={onOpenImportModal}
+              className="px-4 py-2.5 rounded-xl font-semibold text-xs text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/50 shadow-md transition cursor-pointer flex items-center gap-2"
+            >
+              <Upload className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Impor Presensi (Tanpa Ekstensi)</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => onSync(startDate, endDate)}
