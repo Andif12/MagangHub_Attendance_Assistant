@@ -4,12 +4,14 @@ import React, { useState, useEffect } from "react";
 import {
   Shield,
   ExternalLink,
-  Lock,
-  RefreshCw,
-  Info,
+  CheckCircle2,
   AlertCircle,
-  AlertTriangle,
-  Globe,
+  Clock,
+  Sparkles,
+  ArrowRight,
+  Radio,
+  Layers,
+  RefreshCw,
 } from "lucide-react";
 
 interface MagangHubLoginPageProps {
@@ -18,153 +20,160 @@ interface MagangHubLoginPageProps {
 }
 
 export const OFFICIAL_MONEV_PORTAL_URL = "https://monev.maganghub.kemnaker.go.id/login";
+export const OFFICIAL_RIWAYAT_URL = "https://monev.maganghub.kemnaker.go.id/dashboard/riwayat";
 
 export function MagangHubLoginPage({
   onRefreshSession,
   isCheckingSession = false,
 }: MagangHubLoginPageProps) {
-  const [authErrorFromUrl, setAuthErrorFromUrl] = useState<{
-    code: string;
-    message?: string;
-  } | null>(null);
+  const [companionDetected, setCompanionDetected] = useState(false);
+  const [companionVersion, setCompanionVersion] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const authError = params.get("auth_error");
-      const message = params.get("message") || params.get("details");
-
-      if (authError) {
-        setAuthErrorFromUrl({
-          code: authError,
-          message: message || undefined,
-        });
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "MAA_COMPANION_ACTIVE") {
+        setCompanionDetected(true);
+        setCompanionVersion(event.data?.version || "2.0.0");
       }
-    }
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    // Kirim sinyal cek ekstensi
+    window.postMessage({ type: "MAA_CHECK_COMPANION" }, "*");
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
   }, []);
 
   const handleOpenPortal = () => {
     window.open(OFFICIAL_MONEV_PORTAL_URL, "_blank", "noopener,noreferrer");
   };
 
+  const handleOpenRiwayat = () => {
+    window.open(OFFICIAL_RIWAYAT_URL, "_blank", "noopener,noreferrer");
+  };
+
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col justify-between p-4 md:p-8">
-      {/* Container Utama */}
-      <div className="max-w-3xl mx-auto w-full my-auto space-y-7">
+    <div className="min-h-[75vh] flex flex-col justify-center items-center py-6 px-4">
+      <div className="max-w-2xl w-full space-y-6">
         {/* Header Branding */}
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-800/60 text-cyan-400 text-xs font-semibold tracking-wide uppercase">
             <Shield className="w-3.5 h-3.5" />
-            Portal Autentikasi MagangHub Attendance Assistant (MAA)
+            <span>MagangHub Attendance Assistant (MAA) &bull; Mode Otomatis</span>
           </div>
-          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">
-            MagangHub Attendance Assistant
+
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white">
+            Sinkronisasi Presensi Otomatis
           </h1>
-          <p className="text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
-            Akses dashboard monitoring presensi resmi MagangHub/Kemnaker RI. Sistem terisolasi penuh multi-pengguna dengan standar keamanan data terverifikasi.
+
+          <p className="text-slate-400 max-w-lg mx-auto text-xs sm:text-sm leading-relaxed">
+            Asisten monitoring presensi otomatis yang terhubung langsung dengan tampilan resmi portal Monev MagangHub Kemnaker RI tanpa input manual.
           </p>
         </div>
 
-        {/* Card Status & Hasil Pengujian Autentikasi Nyata */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-sm space-y-6">
-          {/* Header Status */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-5">
-            <div className="space-y-1">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Lock className="w-5 h-5 text-amber-400" />
-                Status Autentikasi &amp; Akses Dashboard
-              </h2>
-              <p className="text-xs text-slate-400">
-                Pemeriksaan kepatuhan protokol autentikasi resmi Kementerian Ketenagakerjaan RI.
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-amber-300 bg-amber-950/60 border border-amber-800/60 px-3 py-1.5 rounded-lg w-fit">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-              <span>SSO Pihak Ketiga: Belum Tersedia</span>
-            </div>
-          </div>
-
-          {/* Notifikasi Error dari Query String jika ada */}
-          {authErrorFromUrl && (
-            <div className="p-4 bg-rose-950/40 border border-rose-800/80 rounded-xl text-rose-200 text-xs flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-bold text-rose-300">Pemberitahuan Autentikasi</p>
-                <p className="leading-relaxed">
-                  {authErrorFromUrl.message || `Kode status: ${authErrorFromUrl.code}`}
-                </p>
+        {/* Status Deteksi Ekstensi Companion */}
+        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${companionDetected ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+            <div>
+              <div className="text-xs font-semibold text-white">
+                {companionDetected
+                  ? `MAA Companion Aktif (v${companionVersion})`
+                  : "Menunggu Ekstensi Browser Companion"}
               </div>
-            </div>
-          )}
-
-          {/* Status Integrasi yang Jujur dan Transparan */}
-          <div className="p-4.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3.5 text-xs">
-            <div className="flex items-center gap-2 font-bold text-slate-200 text-sm">
-              <Info className="w-4.5 h-4.5 text-cyan-400 shrink-0" />
-              <span>Status Integrasi Saat Ini:</span>
-            </div>
-            <div className="space-y-2.5 text-slate-300 leading-relaxed text-[11px]">
-              <div className="flex items-start gap-2.5">
-                <span className="text-emerald-400 font-bold shrink-0">✓</span>
-                <p>
-                  <strong className="text-emerald-400">Portal Resmi MagangHub Dapat Dibuka:</strong> Anda dapat mengakses portal resmi Monev MagangHub secara langsung di peramban Anda untuk melakukan absensi harian di akun SIAPkerja.
-                </p>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="text-amber-400 font-bold shrink-0">!</span>
-                <p>
-                  <strong className="text-amber-400">Login SSO Langsung ke MAA Belum Terintegrasi:</strong> Kemnaker RI belum membuka pendaftaran OAuth 2.0 Client publik dengan *redirect URI* ke aplikasi pihak ketiga. Alur SSO di Kemnaker terkunci khusus untuk domain internal Monev.
-                </p>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="text-slate-400 font-bold shrink-0">•</span>
-                <p>
-                  <strong className="text-slate-300">Sinkronisasi Otomatis Belum Tersedia:</strong> Fitur polling otomatis backend terjadwal belum diaktifkan sampai akses API resmi server Kemnaker disetujui dan diterbitkan secara sah.
-                </p>
+              <div className="text-[11px] text-slate-400">
+                {companionDetected
+                  ? "Ekstensi siap membaca tampilan presensi Monev secara otomatis."
+                  : "Pasang ekstensi MAA (DOM-Only) di peramban Anda untuk otomatisasi penuh."}
               </div>
             </div>
           </div>
 
-          {/* Tombol Aksi Navigasi Langsung */}
-          <div className="pt-2">
+          {onRefreshSession && (
             <button
               type="button"
-              onClick={handleOpenPortal}
-              className="w-full py-3.5 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-lg shadow-cyan-950/50 transition flex items-center justify-center gap-2 cursor-pointer"
+              onClick={onRefreshSession}
+              disabled={isCheckingSession}
+              className="px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
             >
-              <Globe className="w-4 h-4" />
-              <span>Buka Portal Resmi Monev MagangHub</span>
-              <ExternalLink className="w-3.5 h-3.5 text-cyan-200" />
+              <RefreshCw className={`w-3 h-3 ${isCheckingSession ? "animate-spin" : ""}`} />
+              <span>Periksa Sesi</span>
             </button>
-            <p className="text-[11px] text-slate-500 text-center mt-2">
-              Tombol di atas membuka tautan resmi <code>monev.maganghub.kemnaker.go.id/login</code> langsung di peramban tanpa perantara proxy MAA.
-            </p>
-          </div>
-
-          {/* Tombol Periksa Sesi */}
-          {onRefreshSession && (
-            <div className="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">
-              <span className="text-slate-400 text-[11px]">
-                Sudah memiliki sesi terverifikasi?
-              </span>
-              <button
-                type="button"
-                onClick={onRefreshSession}
-                disabled={isCheckingSession}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isCheckingSession ? "animate-spin" : ""}`} />
-                <span>Periksa Status Sesi</span>
-              </button>
-            </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="text-center text-xs text-slate-500 space-y-1">
-          <p>© 2026 MagangHub Attendance Assistant (MAA) &bull; Supabase PostgreSQL + Vercel</p>
-          <p className="text-[11px] text-slate-600">
-            Nol Data Fiktif &bull; Nol Token Browser &bull; Terverifikasi Standar Keamanan Data
+        {/* 3 Langkah Alur Otomatis */}
+        <div className="p-6 rounded-2xl glass-panel border border-slate-800 shadow-xl space-y-4">
+          <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <Radio className="w-4 h-4 text-cyan-400" />
+            <span>Alur Otomatisasi (Zero-Manual Workflow)</span>
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+            <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1.5">
+              <div className="w-6 h-6 rounded-lg bg-cyan-950 text-cyan-400 font-bold text-xs flex items-center justify-center border border-cyan-800">
+                1
+              </div>
+              <div className="text-xs font-semibold text-white">Masuk di Portal Resmi</div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Buka portal resmi Monev dan masuk menggunakan akun SIAPkerja Anda.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1.5">
+              <div className="w-6 h-6 rounded-lg bg-cyan-950 text-cyan-400 font-bold text-xs flex items-center justify-center border border-cyan-800">
+                2
+              </div>
+              <div className="text-xs font-semibold text-white">Buka Riwayat Kehadiran</div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Buka menu Riwayat Kehadiran di portal Monev pada peramban Anda.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1.5">
+              <div className="w-6 h-6 rounded-lg bg-cyan-950 text-cyan-400 font-bold text-xs flex items-center justify-center border border-cyan-800">
+                3
+              </div>
+              <div className="text-xs font-semibold text-white">Otomatis Masuk MAA</div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Companion membaca data layar secara aman dan dashboard MAA langsung terisi.
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+            <button
+              type="button"
+              onClick={handleOpenPortal}
+              className="w-full sm:flex-1 py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-lg shadow-cyan-950/50 transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Buka Portal Resmi Monev Kemnaker</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenRiwayat}
+              className="w-full sm:flex-1 py-3 px-4 rounded-xl font-bold text-xs text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>Buka Halaman Riwayat Presensi</span>
+              <ArrowRight className="w-4 h-4 text-cyan-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Jaminan Keamanan Privasi */}
+        <div className="p-4 rounded-xl bg-slate-950/50 border border-slate-900 text-[11px] text-slate-400 space-y-1 leading-relaxed">
+          <div className="font-semibold text-slate-300 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Jaminan Keamanan & Privasi Mutlak</span>
+          </div>
+          <p>
+            MAA <b>tidak pernah</b> meminta kata sandi SIAPkerja, tidak mengekstrak token otentikasi, dan tidak membaca cookie peramban Anda. Seluruh proses sinkronisasi berjalan secara pasif pada tampilan resmi yang sudah Anda buka secara sah.
           </p>
         </div>
       </div>

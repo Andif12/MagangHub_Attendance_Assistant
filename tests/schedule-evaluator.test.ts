@@ -81,11 +81,17 @@ describe("Monev Schedule Evaluator (8 Status Categories)", () => {
     expect(evaluateDayCategory("2026-10-08", undefined, today)).toBe("BELUM_DIISI");
   });
 
-  it("8. Hari Libur (Sabtu dan Minggu / Hari Libur)", () => {
-    // 2026-10-10 is Saturday
-    expect(evaluateDayCategory("2026-10-10", undefined, today)).toBe("HARI_LIBUR");
-    // 2026-10-11 is Sunday
-    expect(evaluateDayCategory("2026-10-11", undefined, today)).toBe("HARI_LIBUR");
+  it("8. Hari Libur (Berdasarkan record DAYOFF atau off-days spesifik peserta)", () => {
+    // Record resmi berstatus DAYOFF
+    const recDayoff = makeRecord("2026-10-10", "DAYOFF");
+    expect(evaluateDayCategory("2026-10-10", recDayoff, today)).toBe("HARI_LIBUR");
+
+    // Peserta dengan off_days kustom [0, 6] (Minggu & Sabtu)
+    expect(evaluateDayCategory("2026-10-10", undefined, today, [0, 6])).toBe("HARI_LIBUR");
+    expect(evaluateDayCategory("2026-10-11", undefined, today, [0, 6])).toBe("HARI_LIBUR");
+
+    // Peserta ritel/shift tanpa off_days weekend (Sabtu/Minggu bukan hari libur otomatis)
+    expect(evaluateDayCategory("2026-10-10", undefined, today)).toBe("BELUM_DIISI");
   });
 
   it("buildScheduledDays builds complete range with summary", () => {
@@ -95,13 +101,15 @@ describe("Monev Schedule Evaluator (8 Status Categories)", () => {
       makeRecord("2026-10-07", "PRESENT", "APPROVED"),
       makeRecord("2026-10-08", "PRESENT", "APPROVED"),
       makeRecord("2026-10-09", "PRESENT", "PENDING"),
+      makeRecord("2026-10-10", "DAYOFF"),
+      makeRecord("2026-10-11", "DAYOFF"),
     ];
 
     const result = buildScheduledDays("2026-10-05", "2026-10-11", records, today);
     expect(result.days.length).toBe(7);
     expect(result.summary.hadirDisetujui).toBe(4);
     expect(result.summary.menungguMentor).toBe(1);
-    expect(result.summary.hariLibur).toBe(2); // 2026-10-10 (Sat) and 2026-10-11 (Sun)
+    expect(result.summary.hariLibur).toBe(2); // 2026-10-10 & 2026-10-11 dari status DAYOFF resmi
     expect(result.summary.belumDiisi).toBe(0);
   });
 

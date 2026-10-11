@@ -11,6 +11,7 @@ import {
   Puzzle,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   XCircle,
   HelpCircle,
   Coffee,
@@ -26,6 +27,16 @@ import {
   STATUS_META,
 } from "@/lib/monev/schedule-evaluator";
 
+export type CompanionLiveStatus =
+  | "CHECKING"
+  | "NOT_DETECTED"
+  | "CONNECTED"
+  | "WAITING_PRESENSI_PAGE"
+  | "SYNCING"
+  | "SUCCESS"
+  | "EXPIRED"
+  | "FAILED";
+
 interface AttendanceDashboardProps {
   records: DbAttendanceRecord[];
   syncRuns: DbSyncRun[];
@@ -34,7 +45,9 @@ interface AttendanceDashboardProps {
   isSyncing: boolean;
   onSync: (startDate?: string, endDate?: string) => Promise<void>;
   onOpenConnectModal: () => void;
-  onOpenImportModal?: () => void;
+  companionStatus?: CompanionLiveStatus;
+  companionMessage?: string;
+  onRetryCompanionSync?: () => void;
 }
 
 export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
@@ -45,7 +58,9 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
   isSyncing,
   onSync,
   onOpenConnectModal,
-  onOpenImportModal,
+  companionStatus = "CONNECTED",
+  companionMessage,
+  onRetryCompanionSync,
 }) => {
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Makassar",
@@ -68,6 +83,22 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
 
   // Bangun evaluasi seluruh hari dan jadwal berdasarkan 8 kategori Monev
   const { days, summary } = useMemo(() => {
+    if (records.length === 0) {
+      return {
+        days: [],
+        summary: {
+          hadirDisetujui: 0,
+          izinDisetujui: 0,
+          tidakHadir: 0,
+          kehadiranDitolak: 0,
+          perluTindakan: 0,
+          menungguMentor: 0,
+          belumDiisi: 0,
+          hariLibur: 0,
+          totalHari: 0,
+        },
+      };
+    }
     return buildScheduledDays(startDate, endDate, records, today);
   }, [startDate, endDate, records, today]);
 
@@ -115,22 +146,47 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Status & Sync Action Bar */}
+      {/* Top Status & Automated Companion Action Bar */}
       <div className="p-5 rounded-2xl glass-panel border border-slate-800 shadow-xl flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <span className="text-xs text-slate-400 font-medium">
-              Status Integrasi & Otomatisasi:
+              Status Sinkronisasi Otomatis:
             </span>
-            {connectionState === "REAL_CONNECTED" ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Otomatisasi Server Aktif (Cron 30 Menit)
+            {companionStatus === "SUCCESS" || records.length > 0 ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                Berhasil Tersinkronkan ({records.length} Catatan)
+              </span>
+            ) : companionStatus === "SYNCING" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-950/80 text-cyan-300 border border-cyan-800/80 animate-pulse">
+                <RefreshCw className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+                Sedang Menyinkronkan...
+              </span>
+            ) : companionStatus === "WAITING_PRESENSI_PAGE" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/80 text-amber-300 border border-amber-800/80">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                Menunggu Halaman Presensi
+              </span>
+            ) : companionStatus === "EXPIRED" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-950/80 text-rose-300 border border-rose-800/80">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                Sesi Monev Kedaluwarsa
+              </span>
+            ) : companionStatus === "CONNECTED" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                Companion Terhubung
+              </span>
+            ) : companionStatus === "FAILED" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-950/80 text-rose-300 border border-rose-800/80">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                Sinkronisasi Terkendala
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-950/80 text-cyan-300 border border-cyan-800/80">
-                <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                Impor Mandiri Terverifikasi (Zero Extension)
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-900 text-slate-400 border border-slate-700">
+                <AlertTriangle className="w-3.5 h-3.5 text-slate-500" />
+                Menunggu Sesi Monev
               </span>
             )}
 
@@ -139,12 +195,15 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
               onClick={onOpenConnectModal}
               className="text-[11px] text-cyan-400 hover:text-cyan-300 underline font-medium ml-1 transition cursor-pointer"
             >
-              Info Jalur Otomatis
+              Info Status Monev
             </button>
           </div>
 
           <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-            {connectionMessage}
+            {companionMessage ||
+              (records.length === 0
+                ? "Data presensi otomatis dibaca langsung dari layar portal Monev MagangHub yang Anda buka. Tidak perlu menyalin JSON atau mengunggah berkas secara manual."
+                : connectionMessage)}
           </p>
 
           <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400 mt-2.5">
@@ -152,7 +211,7 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-cyan-400" />
                 <span>
-                  Terakhir Diperbarui:{" "}
+                  Waktu Pembaruan Terakhir:{" "}
                   <strong className="text-slate-200">
                     {new Date(lastUpdatedTime).toLocaleString("id-ID")}
                   </strong>
@@ -166,9 +225,11 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
                 <span>
                   Sumber Data:{" "}
                   <span className="text-slate-200 font-medium">
-                    {latestSource === "MONEV_API_SERVER"
+                    {latestSource === "MONEV_COMPANION_DOM"
+                      ? "DOM Layar Resmi Portal Monev (Nol-Token)"
+                      : latestSource === "MONEV_API_SERVER"
                       ? "API Server Resmi Monev Kemnaker"
-                      : "Impor Data Asli Monev Terverifikasi"}
+                      : "Sinkronisasi Terverifikasi"}
                   </span>
                 </span>
               </div>
@@ -189,35 +250,26 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {onOpenImportModal && (
+          {onRetryCompanionSync && (
             <button
               type="button"
-              onClick={onOpenImportModal}
-              className="px-4 py-2.5 rounded-xl font-semibold text-xs text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/50 shadow-md transition cursor-pointer flex items-center gap-2"
+              onClick={onRetryCompanionSync}
+              disabled={isSyncing}
+              className="px-4 py-2.5 rounded-xl font-semibold text-xs text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/50 shadow-md transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
             >
-              <Upload className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Impor Presensi (Tanpa Ekstensi)</span>
+              <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isSyncing ? "animate-spin" : ""}`} />
+              <span>Coba Sinkronkan Ulang</span>
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={() => onSync(startDate, endDate)}
-            disabled={isSyncing}
-            className="px-4 py-2.5 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-md shadow-cyan-950/40 transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
-            <span>{isSyncing ? "Memeriksa..." : "Sinkronisasi Presensi Asli"}</span>
-          </button>
-
           <a
-            href="https://monev.maganghub.kemnaker.go.id"
+            href="https://monev.maganghub.kemnaker.go.id/dashboard/riwayat"
             target="_blank"
             rel="noreferrer"
-            className="px-4 py-2.5 rounded-xl font-semibold text-xs text-cyan-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center gap-1.5"
+            className="px-4 py-2.5 rounded-xl font-semibold text-xs text-cyan-300 hover:text-white bg-gradient-to-r from-cyan-950 to-blue-950 border border-cyan-800 hover:border-cyan-600 transition cursor-pointer flex items-center gap-1.5"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            <span>Buka Portal Monev</span>
+            <span>Buka Riwayat di Portal Monev</span>
           </a>
         </div>
       </div>
@@ -502,8 +554,29 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
         </div>
 
         {/* Tabel Rincian Hari */}
+        {/* Tabel Rincian Hari */}
         <div className="overflow-x-auto">
-          {filteredDays.length === 0 ? (
+          {records.length === 0 ? (
+            <div className="py-12 px-4 text-center space-y-3">
+              <Calendar className="w-10 h-10 text-slate-600 mx-auto" />
+              <div className="text-sm font-semibold text-slate-300">
+                Belum Ada Data Presensi Tersinkronkan
+              </div>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                Buka tab resmi Monev MagangHub pada menu <strong>Presensi &gt; Riwayat</strong>.
+                Companion ekstensi akan otomatis membaca data presensi Anda langsung dari layar portal tanpa token atau kata sandi.
+              </p>
+              <a
+                href="https://monev.maganghub.kemnaker.go.id/dashboard/riwayat"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-cyan-300 bg-cyan-950/80 border border-cyan-800 hover:border-cyan-600 transition"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Buka Riwayat Presensi Monev</span>
+              </a>
+            </div>
+          ) : filteredDays.length === 0 ? (
             <div className="py-12 text-center text-slate-400 text-xs">
               <p className="font-semibold text-slate-300">
                 Tidak ada hari yang cocok dengan kriteria filter
@@ -560,7 +633,7 @@ export const AttendanceDashboard: React.FC<AttendanceDashboardProps> = ({
                         </span>
                       ) : (
                         <span className="text-purple-300 font-medium text-[11px]">
-                          Akhir Pekan
+                          {item.category === "HARI_LIBUR" ? "Hari Libur" : "Bukan Hari Kerja"}
                         </span>
                       )}
                     </td>

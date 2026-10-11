@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Simpan dan Validasi Catatan Presensi Terisolasi untuk Sesi Pengguna Ini
-    const { savedCount, records } = processAndSaveImport(
+    const saveResult = processAndSaveImport(
       session.userId,
       parseResult.valid,
       "MANUAL_IMPORT_VERIFIED"
@@ -69,10 +69,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil mengimpor ${savedCount} catatan presensi asli ke akun Anda.`,
-      recordsSaved: savedCount,
+      message: `Berhasil mengimpor ${saveResult.savedCount} catatan presensi asli ke akun Anda (${saveResult.newCount} baru, ${saveResult.updatedCount} diperbarui, ${saveResult.duplicateCount} duplikat).`,
+      recordsSaved: saveResult.savedCount,
+      newRecords: saveResult.newCount,
+      updatedRecords: saveResult.updatedCount,
+      duplicateRecords: saveResult.duplicateCount,
+      rejectedRecords: parseResult.errors.length,
       warnings: parseResult.errors.length > 0 ? parseResult.errors : undefined,
-      records,
+      records: saveResult.records,
+      paginationInfo: parseResult.paginationInfo,
       user: {
         id: session.userId,
         name: session.name,

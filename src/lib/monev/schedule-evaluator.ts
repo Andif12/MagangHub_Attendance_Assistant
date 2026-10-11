@@ -148,16 +148,20 @@ export function formatIndonesianDate(dateStr: string): {
 
 /**
  * Mengevaluasi kategori presensi (1 dari 8 kategori resmi Monev) untuk sebuah hari
+ * PENTING: Hari Sabtu & Minggu TIDAK otomatis dihitung sebagai Hari Libur karena jadwal libur tiap peserta berbeda.
+ * Hari Libur hanya ditentukan jika:
+ * 1. Tercatat dalam record presensi dengan status DAYOFF, HOLIDAY, LIBUR, atau OFF.
+ * 2. Atau cocok dengan konfigurasi hari libur spesifik peserta (participantOffDays).
  */
 export function evaluateDayCategory(
   dateStr: string,
   record: AttendanceRecord | undefined,
-  todayStr: string
+  todayStr: string,
+  participantOffDays?: number[] | null
 ): MonevEightStatus {
   const [year, month, day] = dateStr.split("-").map(Number);
   const dateObj = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-  const dayOfWeek = dateObj.getUTCDay();
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const dayOfWeek = dateObj.getUTCDay(); // 0: Minggu, 1: Senin, ..., 6: Sabtu
 
   // 1. Jika ada record absensi nyata
   if (record) {
@@ -184,6 +188,17 @@ export function evaluateDayCategory(
       return "PERLU_TINDAKAN";
     }
 
+    // Hari Libur tercatat dari portal (DAYOFF, HOLIDAY, LIBUR, OFF)
+    if (
+      status === "HOLIDAY" ||
+      status === "OFF" ||
+      status === "DAYOFF" ||
+      status === "LIBUR" ||
+      status === "WEEKEND"
+    ) {
+      return "HARI_LIBUR";
+    }
+
     // Izin / Sakit
     if (
       status === "ON_LEAVE" ||
@@ -208,11 +223,6 @@ export function evaluateDayCategory(
       return "TIDAK_HADIR";
     }
 
-    // Hari Libur tercatat
-    if (status === "HOLIDAY" || status === "OFF" || status === "WEEKEND") {
-      return "HARI_LIBUR";
-    }
-
     // Hadir
     if (status === "PRESENT" || status === "HADIR") {
       if (approval === "APPROVED") {
@@ -230,18 +240,20 @@ export function evaluateDayCategory(
     return "MENUNGGU_MENTOR";
   }
 
-  // 2. Jika tidak ada record absensi
-  if (isWeekend) {
+  // 2. Jika tidak ada record absensi:
+  // JANGAN otomatis asumsikan Sabtu & Minggu sebagai Hari Libur!
+  // Hanya anggap Hari Libur jika hari tersebut tercatat di konfigurasi off_days peserta.
+  if (Array.isArray(participantOffDays) && participantOffDays.includes(dayOfWeek)) {
     return "HARI_LIBUR";
   }
 
-  // Hari kerja sebelum atau sama dengan hari ini yang belum diisi
+  // Hari yang sudah lewat s.d. hari ini tanpa catatan presensi
   if (dateStr <= todayStr) {
     return "BELUM_DIISI";
   }
 
-  // Hari kerja di masa depan
-  return "HARI_LIBUR";
+  // Hari di masa depan
+  return "BELUM_DIISI";
 }
 
 /**
@@ -290,7 +302,8 @@ export function buildScheduledDays(
   records: AttendanceRecord[],
   todayStr: string = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Makassar",
-  }).format(new Date())
+  }).format(new Date()),
+  participantOffDays?: number[] | null
 ): {
   days: ScheduledDayStatus[];
   summary: ScheduleSummary;
@@ -321,12 +334,15 @@ export function buildScheduledDays(
   while (current <= end) {
     const dateStr = current.toISOString().slice(0, 10);
     const record = recordMap.get(dateStr);
-    const category = evaluateDayCategory(dateStr, record, todayStr);
+    const category = evaluateDayCategory(dateStr, record, todayStr, participantOffDays);
     const meta = STATUS_META[category];
     const { dayName, formattedDate } = formatIndonesianDate(dateStr);
     const [y, m, d] = dateStr.split("-").map(Number);
     const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-    const isWorkday = dt.getUTCDay() !== 0 && dt.getUTCDay() !== 6;
+    const dayOfWeek = dt.getUTCDay();
+    const isWorkday = Array.isArray(participantOffDays)
+      ? !participantOffDays.includes(dayOfWeek)
+      : category !== "HARI_LIBUR";
 
     const { checkInTime, reviewTime } = extractTimesFromRecord(record);
 

@@ -56,34 +56,49 @@ describe("Verifikasi Sistem Autentikasi MagangHub Sebagai Satu-satunya Pintu Mas
     expect(resNotif.status).toBe(401);
   });
 
-  it("2. Login dan registrasi lokal mandiri dinonaktifkan (HTTP 403)", async () => {
-    // Login lokal ditolak
-    const reqLogin = new NextRequest("http://localhost:3000/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "user@example.com", password: "Password123!" }),
-    });
-    const resLogin = await loginHandler();
-    expect(resLogin.status).toBe(403);
-    const loginJson = await resLogin.json();
-    expect(loginJson.error).toContain("dinonaktifkan");
+  it("2. Autentikasi MAA (Login & Register) memvalidasi kredensial dan menolak pembuatan sesi palsu", async () => {
+    const testEmail = `user-auth-${crypto.randomUUID()}@example.com`;
+    const testPassword = "PasswordMaa2026!";
 
-    // Registrasi lokal ditolak
+    // A. Registrasi akun MAA baru
     const reqReg = new NextRequest("http://localhost:3000/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: "User",
-        email: "user@example.com",
-        password: "Password123!",
+        name: "User MAA",
+        email: testEmail,
+        password: testPassword,
       }),
     });
-    const resReg = await registerHandler();
-    expect(resReg.status).toBe(403);
+    const resReg = await registerHandler(reqReg);
+    expect(resReg.status).toBe(201);
     const regJson = await resReg.json();
-    expect(regJson.error).toContain("dinonaktifkan");
+    expect(regJson.success).toBe(true);
+    expect(regJson.user.email).toBe(testEmail.toLowerCase());
+    expect(regJson.token).toBeDefined();
 
-    // Pembuatan sesi mandiri tanpa autentikasi ditolak
+    // B. Login dengan kata sandi yang benar
+    const reqLogin = new NextRequest("http://localhost:3000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: testEmail, password: testPassword }),
+    });
+    const resLogin = await loginHandler(reqLogin);
+    expect(resLogin.status).toBe(200);
+    const loginJson = await resLogin.json();
+    expect(loginJson.success).toBe(true);
+    expect(loginJson.token).toBeDefined();
+
+    // C. Login dengan kata sandi salah -> ditolak HTTP 401
+    const reqLoginWrong = new NextRequest("http://localhost:3000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: testEmail, password: "WrongPassword99!" }),
+    });
+    const resLoginWrong = await loginHandler(reqLoginWrong);
+    expect(resLoginWrong.status).toBe(401);
+
+    // D. Pembuatan sesi mandiri tanpa autentikasi ditolak HTTP 401
     const reqCompanion = new NextRequest("http://localhost:3000/api/auth/companion-sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

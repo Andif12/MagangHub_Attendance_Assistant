@@ -1,93 +1,62 @@
-// MAA Companion Content Script - Berjalan di http://localhost:3000/* dan http://127.0.0.1:3000/*
-// Mengotomatiskan login seketika tanpa perlu klik ekstensi
+// MAA Companion Content Script — Berjalan di http://localhost:3000/* dan http://127.0.0.1:3000/*
+// Mode DOM-Only: Tidak memanipulasi cookie sesi MAA, tidak menyuntikkan token palsu.
 
-console.log("[MAA Companion] Content script aktif di localhost:3000.");
+console.log("[MAA Companion] Content script aktif di localhost:3000 (Mode DOM-Only).");
 
-// Beritahu aplikasi web bahwa MAA Companion Extension aktif di browser ini
-function broadcastCompanionReady() {
+// 1. Beritahu aplikasi web bahwa MAA Companion Extension (DOM-Only) aktif di peramban ini
+function broadcastCompanionStatus() {
   window.postMessage(
     {
       type: "MAA_COMPANION_ACTIVE",
-      version: "1.3.0",
+      version: "2.0.0",
+      mode: "DOM_ONLY",
       timestamp: Date.now(),
     },
     "*"
   );
 }
 
-// Jalankan broadcast segera dan ulangi setelah 500ms
-broadcastCompanionReady();
-setTimeout(broadcastCompanionReady, 500);
+broadcastCompanionStatus();
+setTimeout(broadcastCompanionStatus, 500);
 
-// 1. Dengarkan notifikasi jika sinkronisasi selesai di background service worker
+// 2. Dengarkan data pembacaan DOM yang diteruskan oleh background service worker
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "SESSION_SYNCED" && request.token) {
-    console.log("[MAA Companion] Sesi tersinkronisasi di latar belakang!");
-    localStorage.setItem("maa_token", request.token);
-    document.cookie = `maa_session=${request.token}; path=/; max-age=604800; samesite=lax`;
+  if (request.action === "DOM_ATTENDANCE_UPDATE" && request.data) {
+    console.log("[MAA Companion] Menerima pembaruan data DOM presensi dari background!");
     window.postMessage(
       {
-        type: "MAA_SESSION_READY",
-        token: request.token,
-        user: request.user,
+        type: "MAA_DOM_DATA_RECEIVED",
+        data: request.data,
       },
       "*"
     );
-    // Reload halaman jika masih di halaman login
-    if (!window.location.search.includes("token=")) {
-      window.location.href = `http://localhost:3000/?token=${encodeURIComponent(request.token)}&sync=1`;
-    }
   }
 });
 
-// 2. Fungsi auto-login ke tab Monev aktif
-function triggerAutoLogin() {
-  const hasLocalToken = !!localStorage.getItem("maa_token");
-  const hasCookie = document.cookie.includes("maa_session=");
-
-  if (!hasLocalToken && !hasCookie) {
-    console.log("[MAA Companion] Mengirim permintaan Auto-Login ke tab Monev...");
-    chrome.runtime.sendMessage({ action: "REQUEST_AUTO_LOGIN" }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.warn("[MAA Companion] Runtime error:", chrome.runtime.lastError.message);
-        return;
-      }
-      if (response && response.success && response.token) {
-        console.log("[MAA Companion] Auto-login berhasil dari tab Monev!");
-        localStorage.setItem("maa_token", response.token);
-        document.cookie = `maa_session=${response.token}; path=/; max-age=604800; samesite=lax`;
-        window.location.href = `http://localhost:3000/?token=${encodeURIComponent(response.token)}&sync=1`;
-      }
-    });
-  }
-}
-
-// Jalankan auto-login saat load
-triggerAutoLogin();
-
-// Jalankan ulang saat pengguna beralih kembali ke tab localhost (window focus)
-window.addEventListener("focus", () => {
-  triggerAutoLogin();
-});
-
-// Dengarkan permintaan manual dari halaman web (jika tombol 'Masuk Otomatis' diklik)
+// 3. Jembatan komunikasi: Izinkan UI MAA meminta pemeriksaan DOM Monev terbaru
 window.addEventListener("message", (event) => {
-  if (event.data?.type === "MAA_REQUEST_AUTO_LOGIN") {
-    console.log("[MAA Companion] Menerima sinyal permintaan login dari UI web...");
-    chrome.runtime.sendMessage({ action: "REQUEST_AUTO_LOGIN" }, (response) => {
-      if (response && response.success && response.token) {
-        localStorage.setItem("maa_token", response.token);
-        document.cookie = `maa_session=${response.token}; path=/; max-age=604800; samesite=lax`;
-        window.location.href = `http://localhost:3000/?token=${encodeURIComponent(response.token)}&sync=1`;
-      } else {
+  if (event.data?.type === "MAA_REQUEST_DOM_CHECK") {
+    console.log("[MAA Companion] Menerima permintaan cek DOM dari antarmuka web MAA...");
+    chrome.runtime.sendMessage({ action: "TRIGGER_DOM_CHECK" }, (response) => {
+      if (chrome.runtime.lastError) {
         window.postMessage(
           {
-            type: "MAA_AUTO_LOGIN_FAILED",
-            reason: response?.reason || "Gagal menghubungi tab Monev",
+            type: "MAA_DOM_CHECK_RESULT",
+            success: false,
+            error: chrome.runtime.lastError.message,
           },
           "*"
         );
+        return;
       }
+      window.postMessage(
+        {
+          type: "MAA_DOM_CHECK_RESULT",
+          success: true,
+          data: response?.data || null,
+        },
+        "*"
+      );
     });
   }
 });

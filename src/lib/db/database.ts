@@ -147,6 +147,13 @@ export const attendanceRepository = {
     return selectStmt.get(record.user_id, record.attendance_date) as DbAttendanceRecord;
   },
 
+  findByUserAndDate(userId: string, date: string): DbAttendanceRecord | null {
+    const db = getDb();
+    const stmt = db.prepare(`SELECT * FROM attendance_records WHERE user_id = ? AND attendance_date = ?`);
+    const row = stmt.get(userId, date) as DbAttendanceRecord | undefined;
+    return row || null;
+  },
+
   getLatestSourceInfo(userId: string): {
     source: string;
     lastCheckedAt: string;
